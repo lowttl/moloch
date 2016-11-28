@@ -1,0 +1,81 @@
+--- #Moloch Installation configuration
+
+- hosts: moloch
+  become: true
+  become_user: root
+
+  vars:
+    env: 
+     MOLOCH_LOCALELASTICSEARCH: "yes"
+     MOLOCH_INTERFACE: "eno16780032"
+     MOLOCH_PASSWORD: "whatever"
+     MOLOCH_ELASTICSEARCH: "http://localhost:9200"
+
+  tasks:
+  - name: Install epel-release
+    yum: name=epel-release state=latest
+
+  - name: Install net-tools
+    yum: name=net-tools state=latest
+
+  - name: Install wget
+    yum: name=wget state=latest
+
+  - name: Install java
+    yum: name=java state=latest
+
+  - name: Install perl
+    yum: name=perl state=latest
+
+  - name: Install perl-Net-HTTP
+    yum: name=perl-Net-HTTP state=latest
+
+  - name: Install perl-libwww-perl
+    yum: name=perl-libwww-perl state=latest
+
+  - name: Install perl-JSON
+    yum: name=perl-JSON state=latest
+
+  - name: Download Elasticsearch
+    get_url:
+     url: https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/rpm/elasticsearch/2.4.0/elasticsearch-2.4.0.rpm
+     dest: /tmp/elasticsearch-2.4.0.rpm
+     checksum: sha1:5b9f4477db28ba057fcb00d61599d19b25f3b99e
+
+  - name: Install Elasticsearch
+    yum: name=/tmp/elasticsearch-2.4.0.rpm state=present
+
+  - name: Start Elasticsearch
+    service: name=elasticsearch enabled=yes state=started
+
+  - name: Download Moloch
+    get_url:
+     url: http://files.molo.ch/builds/centos-7/moloch-0.16.0-1.x86_64.rpm
+     dest: /tmp/moloch-0.16.0-1.x86_64.rpm
+     checksum: sha1:3f4ee569b010aabc527a8e6437a384b7a2fcdcdf
+
+  - name: Install Moloch
+    yum: name=/tmp/moloch-0.16.0-1.x86_64.rpm state=present
+    notify: 
+    - Configure Moloch
+    - Configure Moloch Database
+    - Add Moloch user
+
+  - meta: flush_handlers
+
+  - name: Start Moloch Capture
+    service: name=molochcapture enabled=yes state=started
+
+  - name: Start Moloch Viewer
+    service: name=molochviewer enabled=yes state=started
+
+  handlers:
+  - name: Configure Moloch
+    environment: "{{ env }}"
+    shell: /data/moloch/bin/Configure
+  - name: Configure Moloch Database
+    environment: "{{ env }}"
+    shell: '/data/moloch/db/db.pl $MOLOCH_ELASTICSEARCH init'
+  - name: Add Moloch user
+    environment: "{{ env }}"
+    shell: '/data/moloch/bin/moloch_add_user.sh admin admin $MOLOCH_PASSWORD --admin'
